@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com._220a220e.system.mapper.SysRoleMapper">
+    <resultMap id="BaseResultMap" type="com._220a220e.system.entity.SysRole">
+        <id column="id" jdbcType="INTEGER" property="id" />
+        <result column="role" jdbcType="VARCHAR" property="role" />
+        <result column="name" jdbcType="VARCHAR" property="name" />
+        <result column="level" jdbcType="INTEGER" property="level" />
+        <result column="description" jdbcType="VARCHAR" property="description" />
+        <result column="status" jdbcType="CHAR" property="status" />
+        <result column="create_date" jdbcType="TIMESTAMP" property="createDate" />
+        <result column="update_date" jdbcType="TIMESTAMP" property="updateDate" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,
+        role,
+        name,
+        level,
+        description,
+        status,
+        create_date,
+        update_date
+    </sql>
+
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
+        delete from sys_role
+        where id = #{id,jdbcType=INTEGER}
+    </delete>
+    <insert id="insert" parameterType="com._220a220e.system.entity.SysRole">
+        insert into sys_role (
+          <include refid="Base_Column_List" />
+        )
+        values (
+          #{id,jdbcType=INTEGER},
+          #{role,jdbcType=VARCHAR},
+          #{name,jdbcType=VARCHAR},
+          #{level,jdbcType=INTEGER},
+          #{description,jdbcType=VARCHAR},
+          #{status,jdbcType=CHAR},
+          #{createDate,jdbcType=TIMESTAMP},
+          #{updateDate,jdbcType=TIMESTAMP}
+        )
+    </insert>
+    <update id="updateByPrimaryKey" parameterType="com._220a220e.system.entity.SysRole">
+        update sys_role
+        set
+        <if test="role != null">
+            role = #{role,jdbcType=VARCHAR},
+        </if>
+        <if test="name != null">
+          name = #{name,jdbcType=VARCHAR},
+        </if>
+        <if test="level != null">
+          level = #{level,jdbcType=INTEGER},
+        </if>
+        <if test="description != null">
+          description = #{description,jdbcType=VARCHAR},
+        </if>
+        <if test="status != null">
+          status = #{status,jdbcType=CHAR},
+        </if>
+        <if test="createDate != null">
+          create_date = #{createDate,jdbcType=TIMESTAMP},
+        </if>
+          update_date = #{updateDate,jdbcType=TIMESTAMP}
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+    <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from sys_role
+        where id = #{id,jdbcType=INTEGER}
+    </select>
+    <select id="selectAll" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from sys_role
+    </select>
+
+    <select id="selectByUserId" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from sys_role as r
+        left join sys_user_role as s on r.id = s.role_id
+        where s.user_id = #{userId}
+    </select>
+</mapper>

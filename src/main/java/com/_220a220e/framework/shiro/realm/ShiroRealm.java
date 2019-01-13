@@ -1,11 +1,12 @@
 package com._220a220e.framework.shiro.realm;
 
-import com._220a220e.system.entity.Permission;
-import com._220a220e.system.entity.Role;
-import com._220a220e.system.entity.User;
-import com._220a220e.system.service.PermissionService;
-import com._220a220e.system.service.RoleService;
-import com._220a220e.system.service.UserService;
+import com._220a220e.system.entity.SysPermission;
+import com._220a220e.system.entity.SysRole;
+import com._220a220e.system.entity.SysUser;
+import com._220a220e.system.service.SysPermissionService;
+import com._220a220e.system.service.SysRoleService;
+import com._220a220e.system.service.SysUserService;
+import com._220a220e.system.util.constants.SystemConstants;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authc.*;
 import org.apache.shiro.authz.AuthorizationInfo;
@@ -25,34 +26,34 @@ import java.util.List;
 public class ShiroRealm extends AuthorizingRealm {
 
     @Autowired
-    private UserService userService;
+    private SysUserService sysUserService;
 
     @Autowired
-    private PermissionService permissionService;
+    private SysPermissionService permissionService;
 
     @Autowired
-    private RoleService roleService;
+    private SysRoleService sysRoleService;
 
     @Override
     protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
         //获取用户
         String username = (String) principals.getPrimaryPrincipal();
-        User user = userService.findByUsername(username);
+        SysUser user = sysUserService.findByUsername(username);
 
-        SimpleAuthorizationInfo info = new SimpleAuthorizationInfo();
+        SimpleAuthorizationInfo authorizationInfo = new SimpleAuthorizationInfo();
         //赋予角色
-        List<Role> roles = roleService.findByUserId(user.getId());
-        for (Role role : roles) {
-            info.addRole(role.getName());
+        List<SysRole> roles = sysRoleService.findByUserId(user.getId());
+        for (SysRole role : roles) {
+            authorizationInfo.addRole(role.getName());
         }
 
         //赋予权限
-        List<Permission> permissions = permissionService.findByUserId(user.getId());
-        for (Permission permission : permissions) {
-            info.addStringPermission(permission.getName());
+        List<SysPermission> permissions = permissionService.findByUserId(user.getId());
+        for (SysPermission permission : permissions) {
+            authorizationInfo.addStringPermission(permission.getName());
         }
 
-        return info;
+        return authorizationInfo;
     }
 
     @Override
@@ -60,21 +61,22 @@ public class ShiroRealm extends AuthorizingRealm {
         UsernamePasswordToken token = (UsernamePasswordToken) authenticationToken;
         String username = token.getUsername();
 
-        User user = userService.findByUsername(username);
+        SysUser user = sysUserService.findByUsername(username);
 
         if(user == null) {
             // 没找到帐号
             throw new UnknownAccountException();
         }
 
-        Session session = SecurityUtils.getSubject().getSession();
-        session.setAttribute("user", user);
         SimpleAuthenticationInfo authenticationInfo = new SimpleAuthenticationInfo(
                 user.getUsername(),
                 user.getPassword(),
                 ByteSource.Util.bytes(user.getCredentialsSalt()),
                 getName()
         );
+
+        Session session = SecurityUtils.getSubject().getSession();
+        session.setAttribute(SystemConstants.CURRENT_USER, user);
         return authenticationInfo;
     }
 }

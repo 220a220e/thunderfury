@@ -1,10 +1,23 @@
 package com._220a220e.framework.shiro.config;
 
+import com._220a220e.framework.shiro.realm.ShiroRealm;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.shiro.authc.credential.HashedCredentialsMatcher;
+import org.apache.shiro.spring.LifecycleBeanPostProcessor;
+import org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor;
+import org.apache.shiro.spring.web.ShiroFilterFactoryBean;
+import org.apache.shiro.web.mgt.DefaultWebSecurityManager;
 import org.crazycake.shiro.RedisCacheManager;
 import org.crazycake.shiro.RedisManager;
+import org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Redis缓存配置类
@@ -43,4 +56,113 @@ public class ShiroConfiguration {
         redisCacheManager.setRedisManager(redisManager());
         return redisCacheManager;
     }
+
+    /**
+     * LifecycleBeanPostProcessor，这是个DestructionAwareBeanPostProcessor的子类，
+     * 负责org.apache.shiro.util.Initializable类型bean的生命周期的，初始化和销毁。
+     * 主要是AuthorizingRealm类的子类，以及EhCacheManager类。
+     */
+    @Bean(name = "lifecycleBeanPostProcessor")
+    public LifecycleBeanPostProcessor lifecycleBeanPostProcessor() {
+        return new LifecycleBeanPostProcessor();
+    }
+
+    /**
+     * HashedCredentialsMatcher，这个类是为了对密码进行编码的，
+     * 防止密码在数据库里明码保存，当然在登陆认证的时候，
+     * 这个类也负责对form里输入的密码进行编码。
+     */
+    @Bean(name = "hashedCredentialsMatcher")
+    public HashedCredentialsMatcher hashedCredentialsMatcher() {
+        HashedCredentialsMatcher credentialsMatcher = new HashedCredentialsMatcher();
+        credentialsMatcher.setHashAlgorithmName("MD5");
+        credentialsMatcher.setHashIterations(2);
+        credentialsMatcher.setStoredCredentialsHexEncoded(true);
+        return credentialsMatcher;
+    }
+
+    /**
+     * ShiroRealm，这是个自定义的认证类，继承自AuthorizingRealm，
+     * 负责用户的认证和权限的处理，可以参考JdbcRealm的实现。
+     */
+    @Bean(name = "shiroRealm")
+    @DependsOn("lifecycleBeanPostProcessor")
+    public ShiroRealm shiroRealm() {
+        ShiroRealm shiroRealm = new ShiroRealm();
+        shiroRealm.setCredentialsMatcher(hashedCredentialsMatcher());
+        return shiroRealm;
+    }
+
+    /**
+     * SecurityManager，权限管理，这个类组合了登陆，登出，权限，session的处理，是个比较重要的类。
+     */
+    @Bean(name = "securityManager")
+    public DefaultWebSecurityManager securityManager() {
+        DefaultWebSecurityManager securityManager = new DefaultWebSecurityManager();
+        // 设置realm
+        securityManager.setRealm(shiroRealm());
+        return securityManager;
+    }
+
+    /**
+     * ShiroFilterFactoryBean，是个factorybean，为了生成ShiroFilter。
+     * 它主要保持了三项数据，securityManager，filters，filterChainDefinitionManager。
+     */
+    @Bean(name = "shiroFilter")
+    public ShiroFilterFactoryBean shiroFilterFactoryBean() {
+        ShiroFilterFactoryBean shiroFilterFactoryBean = new ShiroFilterFactoryBean();
+        shiroFilterFactoryBean.setSecurityManager(securityManager());
+
+        // 拦截器
+        Map<String, String> filterChainDefinitionManager = new LinkedHashMap<>();
+
+        // 配置不会被拦截的链接 顺序判断
+        filterChainDefinitionManager.put("/", "anon");
+        filterChainDefinitionManager.put("/static/**", "anon");
+        filterChainDefinitionManager.put("/resources/**", "anon");
+        // 配置退出过滤器，其中具体的退出代码由shiro实现
+        filterChainDefinitionManager.put("/passport/logout", "logout");
+
+        // 具有角色“ADMIN”的用户有权限访问
+        filterChainDefinitionManager.put("/user/**", "authc,roles[ADMIN]");
+        // 具有权限“user:edit”的用户有权限访问
+        filterChainDefinitionManager.put("/user/edit/**", "authc,perms[user:edit]");
+
+        // 过滤链定义，从上向下顺序执行，一般将/**放在最为下边
+        // authc:所有url都必须认证通过才可以访问; anon:所有url都可以匿名访问
+        filterChainDefinitionManager.put("/**", "authc");
+
+        // 如果不设置默认会寻找Web工程根目录下的“/login.jsp”页面
+        shiroFilterFactoryBean.setLoginUrl("/passport/login");
+        // 登录成功后跳转的链接
+        shiroFilterFactoryBean.setSuccessUrl("/user/");
+        // 未授权界面
+        shiroFilterFactoryBean.setUnauthorizedUrl("/403");
+
+        shiroFilterFactoryBean.setFilterChainDefinitionMap(filterChainDefinitionManager);
+        return shiroFilterFactoryBean;
+    }
+
+    /**
+     * DefaultAdvisorAutoProxyCreator，Spring的一个bean，由Advisor决定对哪些类的方法进行AOP代理。
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public DefaultAdvisorAutoProxyCreator defaultAdvisorAutoProxyCreator() {
+        DefaultAdvisorAutoProxyCreator defaultAAP = new DefaultAdvisorAutoProxyCreator();
+        defaultAAP.setProxyTargetClass(true);
+        return defaultAAP;
+    }
+
+    /**
+     * AuthorizationAttributeSourceAdvisor，shiro里实现的Advisor类，
+     * 内部使用AopAllianceAnnotationsAuthorizingMethodInterceptor来拦截用以下注解的方法。
+     */
+    @Bean
+    public AuthorizationAttributeSourceAdvisor authorizationAttributeSourceAdvisor() {
+        AuthorizationAttributeSourceAdvisor aASA = new AuthorizationAttributeSourceAdvisor();
+        aASA.setSecurityManager(securityManager());
+        return aASA;
+    }
+
 }
